@@ -1,0 +1,12 @@
+{
+    "python.formatting.provider": "autopep8",
+    "python.envFile": "${workspaceFolder}/dev.env",
+    "python.pythonPath": "C:\\Program Files\\Python311\\python.exe",
+    // "python.envFile": "${workspaceFolder}/.env",
+    "terminal.integrated.env.windows": {
+        "PYTHONPATH": "${workspaceFolder};${env:PYTHONPATH}"
+    },
+    "python.analysis.autoImportCompletions": true
+
+}
+
