@@ -1,106 +1,42 @@
-# 作者: Eric Chang <ericchang2017@u.northwestern.edu>
-#         Nicolas Hug <contact@nicolas-hug.com>
-# 执照: BSD 3 clause
+import pandas as pd
 
-import numpy as np
-import matplotlib.pyplot as plt
+def calculate_remaining_life_and_spare_parts(expected_lifespans, current_ages):
+    """
+    计算产品剩余寿命，并预测未来3年每个季度寿命到期的产品个数。
+    
+    :param expected_lifespans: list, 产品的预期寿命列表
+    :param current_ages: list, 产品现在的年龄列表
+    :return: DataFrame, 未来3年每个季度的备品个数表格
+    """
+    # 计算剩余寿命
+    remaining_lifes = [expected - current for expected, current in zip(expected_lifespans, current_ages)]
+    
+    # 创建时间轴，未来3年每个季度
+    quarters = pd.date_range(start=pd.Timestamp('now'), periods=12, freq='Q')
+    
+    # 创建计数列表，用于记录每个季度到期的产品个数
+    spare_parts_per_quarter = [0] * len(quarters)
+    
+    # 遍历每个产品的剩余寿命，计算各个季度的到期个数
+    for life in remaining_lifes:
+        # 找到剩余寿命在哪个季度到期
+        expiry_quarter = next((index for index, date in enumerate(quarters) if life < (date.year - pd.Timestamp('now').year) * 12 + (date.month - pd.Timestamp('now').month) / 3), None)
+        # 如果在3年内到期，则在相应季度计数
+        if expiry_quarter is not None:
+            spare_parts_per_quarter[expiry_quarter] += 1
+    
+    # 创建输出表格
+    df = pd.DataFrame({
+        'Quarter': quarters,
+        'Spare Parts Needed': spare_parts_per_quarter
+    })
+    
+    return df
 
-from sklearn.preprocessing import PowerTransformer
-from sklearn.preprocessing import QuantileTransformer
-from sklearn.model_selection import train_test_split
+# 示例数据
+expected_lifespans = [10, 15, 20, 5, 7]  # 预期寿命年数
+current_ages = [2, 3, 10, 1, 4]         # 当前年龄年数
 
-print(__doc__)
-
-
-N_SAMPLES = 1000
-FONT_SIZE = 6
-BINS = 30
-
-
-rng = np.random.RandomState(304)
-bc = PowerTransformer(method='box-cox')
-yj = PowerTransformer(method='yeo-johnson')
-# n_quantiles设置为训练集大小，而不是默认值，以避免此示例引发警告
-qt = QuantileTransformer(n_quantiles=500, output_distribution='normal',
-                         random_state=rng)
-size = (N_SAMPLES, 1)
-
-
-# 对数正态分布
-X_lognormal = rng.lognormal(size=size)
-
-# 卡方分布
-df = 3
-X_chisq = rng.chisquare(df=df, size=size)
-
-# 威布尔分布
-a = 50
-X_weibull = rng.weibull(a=a, size=size)
-
-# 高斯分布
-loc = 100
-X_gaussian = rng.normal(loc=loc, size=size)
-
-# 均匀分布
-X_uniform = rng.uniform(low=0, high=1, size=size)
-
-# 双峰分布
-loc_a, loc_b = 100, 105
-X_a, X_b = rng.normal(loc=loc_a, size=size), rng.normal(loc=loc_b, size=size)
-X_bimodal = np.concatenate([X_a, X_b], axis=0)
-
-
-# 绘制图像
-distributions = [
-    ('Lognormal', X_lognormal),
-    ('Chi-squared', X_chisq),
-    ('Weibull', X_weibull),
-    ('Gaussian', X_gaussian),
-    ('Uniform', X_uniform),
-    ('Bimodal', X_bimodal)
-]
-
-colors = ['#D81B60', '#0188FF', '#FFC107',
-          '#B7A2FF', '#000000', '#2EC5AC']
-
-fig, axes = plt.subplots(nrows=8, ncols=3, figsize=plt.figaspect(2))
-axes = axes.flatten()
-axes_idxs = [(0, 3, 6, 9), (1, 4, 7, 10), (2, 5, 8, 11), (12, 15, 18, 21),
-             (13, 16, 19, 22), (14, 17, 20, 23)]
-axes_list = [(axes[i], axes[j], axes[k], axes[l])
-             for (i, j, k, l) in axes_idxs]
-
-
-for distribution, color, axes in zip(distributions, colors, axes_list):
-    name, X = distribution
-    X_train, X_test = train_test_split(X, test_size=.5)
-
-    # 执行幂变换和分位数变换
-    X_trans_bc = bc.fit(X_train).transform(X_test)
-    lmbda_bc = round(bc.lambdas_[0], 2)
-    X_trans_yj = yj.fit(X_train).transform(X_test)
-    lmbda_yj = round(yj.lambdas_[0], 2)
-    X_trans_qt = qt.fit(X_train).transform(X_test)
-
-    ax_original, ax_bc, ax_yj, ax_qt = axes
-
-    ax_original.hist(X_train, color=color, bins=BINS)
-    ax_original.set_title(name, fontsize=FONT_SIZE)
-    ax_original.tick_params(axis='both', which='major', labelsize=FONT_SIZE)
-
-    for ax, X_trans, meth_name, lmbda in zip(
-            (ax_bc, ax_yj, ax_qt),
-            (X_trans_bc, X_trans_yj, X_trans_qt),
-            ('Box-Cox', 'Yeo-Johnson', 'Quantile transform'),
-            (lmbda_bc, lmbda_yj, None)):
-        ax.hist(X_trans, color=color, bins=BINS)
-        title = 'After {}'.format(meth_name)
-        if lmbda is not None:
-            title += r'\n$\lambda$ = {}'.format(lmbda)
-        ax.set_title(title, fontsize=FONT_SIZE)
-        ax.tick_params(axis='both', which='major', labelsize=FONT_SIZE)
-        ax.set_xlim([-3.5, 3.5])
-
-
-plt.tight_layout()
-plt.show()
+# 计算并打印表格
+spare_parts_table = calculate_remaining_life_and_spare_parts(expected_lifespans, current_ages)
+print(spare_parts_table)
