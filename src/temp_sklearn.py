@@ -1,42 +1,92 @@
-import pandas as pd
 
-def calculate_remaining_life_and_spare_parts(expected_lifespans, current_ages):
-    """
-    计算产品剩余寿命，并预测未来3年每个季度寿命到期的产品个数。
-    
-    :param expected_lifespans: list, 产品的预期寿命列表
-    :param current_ages: list, 产品现在的年龄列表
-    :return: DataFrame, 未来3年每个季度的备品个数表格
-    """
-    # 计算剩余寿命
-    remaining_lifes = [expected - current for expected, current in zip(expected_lifespans, current_ages)]
-    
-    # 创建时间轴，未来3年每个季度
-    quarters = pd.date_range(start=pd.Timestamp('now'), periods=12, freq='Q')
-    
-    # 创建计数列表，用于记录每个季度到期的产品个数
-    spare_parts_per_quarter = [0] * len(quarters)
-    
-    # 遍历每个产品的剩余寿命，计算各个季度的到期个数
-    for life in remaining_lifes:
-        # 找到剩余寿命在哪个季度到期
-        expiry_quarter = next((index for index, date in enumerate(quarters) if life < (date.year - pd.Timestamp('now').year) * 12 + (date.month - pd.Timestamp('now').month) / 3), None)
-        # 如果在3年内到期，则在相应季度计数
-        if expiry_quarter is not None:
-            spare_parts_per_quarter[expiry_quarter] += 1
-    
-    # 创建输出表格
-    df = pd.DataFrame({
-        'Quarter': quarters,
-        'Spare Parts Needed': spare_parts_per_quarter
-    })
-    
-    return df
+import streamlit as st  # 网络应用框架
+import pandas as pd     # 数据处理
+import numpy as np      # 数值运算
+import matplotlib.pyplot as plt  # 绘图库
 
-# 示例数据
-expected_lifespans = [10, 15, 20, 5, 7]  # 预期寿命年数
-current_ages = [2, 3, 10, 1, 4]         # 当前年龄年数
+import requests, os     # 处理 HTTP 请求和操作系统操作
+from gwpy.timeseries import TimeSeries  # 用于引力波数据的时间序列数据分析
+from gwosc.locate import get_urls       # 获取引力波数据的 URL
+from gwosc import datasets              # 提供有关可用数据集的信息
+from gwosc.api import fetch_event_json  # 从 GWOSC 获取事件元数据
 
-# 计算并打印表格
-spare_parts_table = calculate_remaining_life_and_spare_parts(expected_lifespans, current_ages)
-print(spare_parts_table)
+from copy import deepcopy  # 创建对象的深拷贝
+import base64  # 将二进制数据编码为 base64 字符串
+
+from helper import make_audio_file  # 辅助函数，将数据转换成音频
+
+import matplotlib as mpl
+mpl.use("agg")  # 使用 Matplotlib 的非交互式后端 Agg
+
+from matplotlib.backends.backend_agg import RendererAgg
+_lock = RendererAgg.lock  # Matplotlib 的线程安全锁
+
+# -- 设置页面配置
+apptitle = 'GW Quickview'
+st.set_page_config(page_title=apptitle, page_icon=":eyeglasses:")
+
+# -- 默认检测器列表
+detectorlist = ['H1','L1', 'V1']
+
+st.title('引力波快速查看')
+# 应用程序的说明和介绍
+
+@st.cache_data(max_entries=5)
+def load_gw(t0, detector, fs=4096):
+    # 加载引力波数据
+    strain = TimeSeries.fetch_open_data(detector, t0-14, t0+14, sample_rate=fs, cache=False)
+    return strain
+
+@st.cache_data(max_entries=10)
+def get_eventlist():
+    # 获取引力波事件列表
+    allevents = datasets.find_datasets(type='events')
+    eventset = set()
+    for ev in allevents:
+        name = fetch_event_json(ev)['events'][ev]['commonName']
+        if name.startswith('GW'):
+            eventset.add(name)
+    eventlist = sorted(list(eventset))
+    return eventlist
+
+# 侧边栏用户输入
+eventlist = get_eventlist()
+# 用户可选择的选项以找到数据
+
+# GPS 或基于事件的数据选择
+# ...
+
+# 检测器选择
+detector = st.sidebar.selectbox('检测器', detectorlist)
+
+# 采样率选择
+# ...
+
+# 绘图参数控制
+# ...
+
+# 数据加载和错误处理
+# ...
+
+# 时间序列图
+# ...
+
+# 白化和带通滤波图
+# ...
+
+# 允许数据下载
+# ...
+
+# 从数据制作音频文件
+# ...
+
+# 关于白化的说明
+# ...
+
+# Q-变换图
+# ...
+
+# 关于 Q-变换的说明
+# ...
+
+# 关于应用程序和相关链接的信息

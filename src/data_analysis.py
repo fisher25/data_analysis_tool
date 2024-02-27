@@ -441,12 +441,39 @@ class Life_analysis():
         return probability
     
     @staticmethod
-    def reserve_num(datasets):
-        # 输入产品预期寿命，产品现在的年龄，计算产品剩余寿命
-        # 根据产品剩余寿命的时间分布，计算未来时间段的寿命到期的产品个数
-        # 输出表格，未来3年每个季度的备品个数
+    def calculate_remaining_life_and_spare_parts(expected_lifespans, current_ages):
+    
+    # 计算产品剩余寿命，并预测未来3年每个季度寿命到期的产品个数。
+    
+    # :param expected_lifespans: list, 产品的预期寿命列表
+    # :param current_ages: list, 产品现在的年龄列表
+    # :return: DataFrame, 未来3年每个季度的备品个数表格
+    
+        # 计算剩余寿命
+        remaining_lifes = [expected - current for expected, current in zip(expected_lifespans, current_ages)]
         
-        pass
+        # 创建时间轴，未来3年每个季度
+        quarters = pd.date_range(start=pd.Timestamp('now'), periods=12, freq='Q')
+        
+        # 创建计数列表，用于记录每个季度到期的产品个数
+        spare_parts_per_quarter = [0] * len(quarters)
+        
+        # 遍历每个产品的剩余寿命，计算各个季度的到期个数
+        for life in remaining_lifes:
+            # 找到剩余寿命在哪个季度到期
+            expiry_quarter = next((index for index, date in enumerate(quarters) if life < (date.year - pd.Timestamp('now').year) * 12 + (date.month - pd.Timestamp('now').month) / 3), None)
+            # 如果在3年内到期，则在相应季度计数
+            if expiry_quarter is not None:
+                spare_parts_per_quarter[expiry_quarter] += 1
+        
+        # 创建输出表格
+        df = pd.DataFrame({
+            'Quarter': quarters,
+            'Spare Parts Needed': spare_parts_per_quarter
+        })
+        print(df)
+        
+        return df
         
         
     def reserve_part(self,current_data):
