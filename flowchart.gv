@@ -1,0 +1,18 @@
+// 检测流程
+digraph {
+	A [label="开始"]
+	B [label="安装振动传感器"]
+	C [label="系统初始化"]
+	D [label="数据采集"]
+	E [label="数据传输"]
+	F [label="信号分析"]
+	G [label="结果展示"]
+	H [label="结束"]
+	A -> B
+	B -> C
+	C -> D
+	D -> E
+	E -> F
+	F -> G
+	G -> H
+}

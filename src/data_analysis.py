@@ -8,6 +8,7 @@ import struct
 from matplotlib import pyplot as plt
 from matplotlib.colors import ListedColormap
 import mpl_toolkits.mplot3d 
+import random
 
 from scipy.stats import weibull_min
 
@@ -43,7 +44,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.svm import LinearSVC
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.ensemble import VotingClassifier
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, max_error, mean_absolute_error, mean_absolute_percentage_error
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
@@ -54,27 +55,95 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.neural_network import MLPRegressor
 
 import seaborn as sns
+import streamlit as st
+import plotly.figure_factory as ff
+import plotly.express as px
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 
-from temp_sklearn import FONT_SIZE
+# from temp_sklearn import FONT_SIZE
 
 plt.rcParams['font.family'] = 'SimHei'  # 将字体设置为SimHei或其他中文字体
 
 # 定义全局常量文件路径等          
 FILE_2022_BENCH_TEST = './data/2022_benchtest.xlsx'
 FILE_2022_MAINTEANCE = './data/2022mainteance_report.xlsx'
-FILE_FAKE_MAINTEANCE = './data/fake_mainteance_data.xlsx'
 FILE_FAKE_BENCH_CAN = './data/fake_bench_CANdata.xlsx'
-FILE_PART_LIFE = './data/fakedata_waterpump_life.xlsx'
+
+FILE_2022_BENCH_TEST_FORMAT = './data/2022_benchtest_format.xlsx'
+FILE_FAKE_MAINTEANCE = './data/fake_mainteance_data.xlsx'
+FILE_PART_LIFE =  './data/rul_pump_data_from_kaggle.xlsx'  #               './data/fakedata_waterpump_life.xlsx'
 FILE_WATERPUMP_MT = './data/fakedata_waterpump_mainteance.xlsx'
 
+
+
 class CustomDataset():
-    # 输入数据定义接口
-    def __init__(self, data, target, feature_names=None, target_names=None, description=None):
+    # 输入数据定义接口, numpy转对象
+    def __init__(self, data, target, feature_names=None, target_names=None, description=None,file_path=None):
         self.data = data
         self.target = target
         self.feature_names = feature_names
         self.target_names = target_names
         self.description = description
+        self.file_path = file_path
+        
+        self.create_dataframe()
+        self.save_dataframe_to_excel()
+
+
+    def create_dataframe(self):
+
+        data_df = pd.DataFrame(self.data, columns=self.feature_names)
+        target_df = pd.DataFrame(self.target, columns= [self.target_names])
+        self.dataframe = pd.concat([data_df, target_df], axis=1)
+
+    def save_dataframe_to_excel(self):
+
+        if not os.path.exists(self.file_path):
+            self.dataframe.to_excel(self.file_path, index=False)
+            print(f'DataFrame saved to {self.file_path}')
+        else:
+            print(f'File {self.file_path} already exists. Skipping save.')
+            
+    
+class LoadDataset():
+    # def __init__(self, file_path, description=None):
+
+        # df = pd.read_excel(file_path)
+        # # 最后一列是目标列，其他是特征列
+        # self.data = df.iloc[:, :-1].values
+        # self.target = df.iloc[:, -1].values
+        # self.feature_names = df.columns[:-1].tolist()
+        # self.target_names = df.columns[-1]
+        # self.description = f'Data loaded from {file_path}'
+        
+    def __init__(self, file_path=None, description=None):
+        self.data = None
+        self.target = None
+        self.feature_names = None
+        self.target_names = None
+        self.description = description
+        
+        if file_path is not None:
+            self.load_from_file(file_path)
+            
+    def load_from_file(self, file_path):
+        df = pd.read_excel(file_path)
+        # self.data = df.iloc[:, :-1].values
+        # self.target = df.iloc[:, -1].values
+        random_list = [random.randint(1, 150000) for _ in range(100)]
+        self.data = df.iloc[random_list, :-1].values
+        self.target = df.iloc[random_list, -1].values
+        self.feature_names = df.columns[:-1].tolist()
+        self.target_names = df.columns[-1]
+        self.description = f'从文件路径 {file_path} 加载的数据'
+        
+    def load_from_dataframe(self, dataframe):
+        self.data = dataframe.iloc[:, :-1].values
+        self.target = dataframe.iloc[:, -1].values
+        self.feature_names = dataframe.columns[:-1].tolist()
+        self.target_names = dataframe.columns[-1]
+        self.description = '从DataFrame加载的数据'
 
 
 class Data_Input():
@@ -139,7 +208,7 @@ class Data_Input():
         test_rets = filler.transform(test_rets)
         
         # 创建数据集对象
-        target_names = ['合格', '不合格']
+        target_names = ['合格']
         description = '准能2022年维修数据'
         mainteance_2022_dataset = CustomDataset(data=features, target=test_rets, feature_names=feature_names,
                                     target_names=target_names, description=description)
@@ -175,7 +244,7 @@ class Data_Input():
         data = pd.read_excel(filename,sheet_name='Sheet9',header=None) 
         print('column',data.columns)
         
-        test_point = data.iloc[6:12, 2].values
+        test_point = data.iloc[5:12, 2].values
         test_item = data.iloc[3, 3:16].values
         feature_names = [f"{a}\n{b}" for a in test_point for b in test_item]
         feature_names = [s.replace(" ", "") for s in feature_names]
@@ -189,10 +258,10 @@ class Data_Input():
         test_rets = filler.transform(test_rets)
         
         # 创建数据集对象
-        target_names = ['合格', '不合格']
+        target_names = ['合格']
         description = '准能2022热试数据'
         mainteance_2022_dataset = CustomDataset(data=features, target=test_rets, feature_names=feature_names,
-                                    target_names=target_names, description=description)
+                                    target_names=target_names, description=description, file_path=FILE_2022_BENCH_TEST_FORMAT)
         return [mainteance_2022_dataset]
 
     @staticmethod
@@ -202,11 +271,11 @@ class Data_Input():
         
         df = pd.read_excel(FILE_PART_LIFE,sheet_name='Sheet1',header=0)
         
-        features = df.iloc[:,1:3].values
-        life_rets = df.iloc[:,3].values
-        feature_names = df.columns[1:3]
+        features = df.iloc[:,0:2].values
+        life_rets = df.iloc[:,-1].values
+        feature_names = df.columns[0:2]
         # 创建数据集对象
-        target_names = df.columns[3]
+        target_names = df.columns[-1]
         description = '水泵流量测试数据和寿命'
         dataset = CustomDataset(data=features, target=life_rets, feature_names=feature_names,
                                     target_names=target_names, description=description)
@@ -269,6 +338,8 @@ class Data_visual():
         plt.subplots_adjust(top=0.8)
         plt.suptitle(dataset.description, fontsize=14, y=0.98)
         plt.show()
+        
+        return [fig ,N]
 
     def stats_analysis(self, dataset):
         # 绘制数据集分布图并展示统计信息
@@ -412,6 +483,12 @@ class Life_analysis():
         cdf = weibull_min.cdf(x, shape, loc, scale)
         plt.plot(x, cdf, 'r-', label=f'Weibull Distribution (shape={round(shape, 2)}, scale={round(scale, 2)})')
 
+        #  :param reliability_requirement: 所需的可靠性阈值
+        # :param beta: 威布尔分布的形状参数
+        # :param eta: 威布尔分布的比例参数
+        # maintenance_interval = eta * (-math.log(reliability_requirement)) ** (1 / beta)
+        # return maintenance_interval
+        
         plt.xlabel('水泵样本寿命（天）')
         plt.ylabel('寿命累积概率')#Cumulative Distribution Function
         plt.title('水泵寿命的韦伯累积概率分布')
@@ -438,76 +515,38 @@ class Life_analysis():
         # 计算指定时间窗口的概率
         probability = weibull_min.cdf(end_time, shape, loc, scale) - weibull_min.cdf(start_time, shape, loc, scale)
         print("指定时间窗口的概率：", probability)
-        return probability
+        
+        service_times = [100,200,300,400,500,600,700]
+        time_period = 90
+        
+        return Life_analysis.calculate_failure_count(service_times, time_period, shape, scale)
     
     @staticmethod
-    def calculate_remaining_life_and_spare_parts(expected_lifespans, current_ages):
+    def calculate_failure_count(service_times, time_period, shape, scale):
+        # 计算未来时间窗口的失效个数
+        # :param time_period: 未来时间窗口
+        # :param service_times:  产品现在的服役时长列表
+        # :return: DataFrame, 未来时间窗口的失效个数表格
     
-    # 计算产品剩余寿命，并预测未来3年每个季度寿命到期的产品个数。
-    
-    # :param expected_lifespans: list, 产品的预期寿命列表
-    # :param current_ages: list, 产品现在的年龄列表
-    # :return: DataFrame, 未来3年每个季度的备品个数表格
-    
-        # 计算剩余寿命
-        remaining_lifes = [expected - current for expected, current in zip(expected_lifespans, current_ages)]
-        
-        # 创建时间轴，未来3年每个季度
-        quarters = pd.date_range(start=pd.Timestamp('now'), periods=12, freq='Q')
-        
-        # 创建计数列表，用于记录每个季度到期的产品个数
-        spare_parts_per_quarter = [0] * len(quarters)
-        
-        # 遍历每个产品的剩余寿命，计算各个季度的到期个数
-        for life in remaining_lifes:
-            # 找到剩余寿命在哪个季度到期
-            expiry_quarter = next((index for index, date in enumerate(quarters) if life < (date.year - pd.Timestamp('now').year) * 12 + (date.month - pd.Timestamp('now').month) / 3), None)
-            # 如果在3年内到期，则在相应季度计数
-            if expiry_quarter is not None:
-                spare_parts_per_quarter[expiry_quarter] += 1
-        
-        # 创建输出表格
+        total_failure_count = 0
+        dist = weibull_min(shape, scale=scale)
+
+        for service_time in service_times:
+            service_time_next = time_period + service_time
+            failure_count = (dist.sf(service_time) - dist.sf(service_time_next))/dist.sf(service_time)
+            
+            total_failure_count += failure_count
+
+        total_failure_count = int(total_failure_count)
+
         df = pd.DataFrame({
-            'Quarter': quarters,
-            'Spare Parts Needed': spare_parts_per_quarter
-        })
+            '时间窗口（天）': time_period,
+            '失效产品个数': total_failure_count
+        }, index=[0])
         print(df)
         
         return df
         
-        
-    def reserve_part(self,current_data):
-        
-        # 给出需要准备的零件个数
-        # 输入上线日期，上线个数，算出已运行时间
-        # 根据
-        # 输出指定时间段内，预期零部件故障个数
-        
-        signup_date = ["2019-9-26","2020-10-20","2021-11-11"]
-        
-        item_num = [100,500,800]
-        
-        # 日期字符串
-        date_string = "2021-09-01"
-
-        # 将日期字符串转换为日期对象
-        date_object = datetime.strptime(date_string, "%Y-%m-%d")
-        
-        # 获取当前日期和时间
-        now = datetime.now()
-        print("当前日期和时间：", now)
-
-
-        # 减去一周
-        one_week = timedelta(weeks=1)
-        previous_week = now - one_week
-        print("减去一周后的日期和时间：", previous_week)
-
-        # 加上一个月
-        one_month = timedelta(days=30)
-        next_month = now + one_month
-        print("加上一个月后的日期和时间：", next_month)
-   
 
 class Fault_diagnose():
     
@@ -521,7 +560,6 @@ class Fault_diagnose():
             # features, labels = ds
             features = ds.data
             labels = ds.target
-            
             
             X_train, X_test, y_train, y_test = model_selection.train_test_split(features,labels,random_state=0)
             svm_method = svm.LinearSVC(C=100)
@@ -659,9 +697,16 @@ class Fault_diagnose():
             plt.ylabel('检测项目权重')
             plt.axis('tight')
             plt.legend(loc='upper right')
-            plt.show()           
+            plt.show()          
+            
+            stfig_rate = make_subplots(rows=1, cols=1)
+            stfig_rate.add_trace(go.Bar(x=X_indices,y=feature_weights))
+            stfig_rate.update_xaxes(title_text='检测项目 [-]', tickfont=dict(size=14))
+            stfig_rate.update_yaxes(title_text='检测项目权重', tickfont=dict(size=14))
+            stfig_rate.update_layout(title_text=f'{ds.description}可疑检测项目排查') 
             
             print('故障产品疑似存在问题的检测项目为','')
+            return [stfig_rate , feature_weights]   
   
         
 class Classifier():
@@ -743,9 +788,9 @@ class Classifier():
                 clf = make_pipeline(StandardScaler(), clf)
                 clf.fit(X_train, y_train)
                 score = clf.score(X_test, y_test)
-                DecisionBoundaryDisplay.from_estimator(
-                    clf, X[:,0:2], cmap=cm, alpha=0.8, ax=ax, eps=0.5
-                )
+                # DecisionBoundaryDisplay.from_estimator(
+                #     clf, X[:,0:2], cmap=cm, alpha=0.8, ax=ax, eps=0.5
+                # )
                 ax.scatter(
                     X_train[:, 0], X_train[:, 1], c=y_train, cmap=cm_bright, edgecolors="k"
                 )
@@ -851,14 +896,10 @@ class Classifier():
                 X, y, test_size=0.1, random_state=42
             )
 
-            # just plot the dataset first
-            cm = plt.cm.RdBu
-            cm_bright = ListedColormap(["#FF0000", "#0000FF"])
-            ax = plt.subplot(len(datasets), len(classifiers) + 1, i)
-
             i += 1
             # iterate over classifiers
             j=0
+            
             y_pred = np.zeros(len(classifiers))
             score = np.zeros(len(classifiers))
             for name, clf in zip(names, classifiers):
@@ -869,26 +910,9 @@ class Classifier():
                 score[j] = clf.score(X_test, y_test)
                 
                 # 使用分类器进行预测
-                
                 y_pred[j] = clf.predict([X[-1,:]])
                 i += 1
                 j += 1
-            
-            # # 获取分类器的分类报告
-            # class_reports[name] = classification_report(y_test, y_pred, output_dict=True)
-            
-            # # 计算混淆矩阵并保存
-            # conf_matrix = confusion_matrix(y_test, y_pred)
-            # conf_matrices[name] = conf_matrix
-
-            # # 绘制混淆矩阵的热图
-            # plt.figure(figsize=(10, 7))
-            # sns.heatmap(conf_matrix, annot=True, fmt='g')
-            # plt.title(f'Confusion Matrix for {name}')
-            # plt.ylabel('True label')
-            # plt.xlabel('Predicted label')
-            # plt.show()
-            
             
             # 统计投票结果
             class_counts = np.bincount(y_pred.astype(np.int64))
@@ -901,27 +925,63 @@ class Classifier():
             ax.set_xlabel('')
             # plt.xticks(rotation=45)
             ax.set_ylabel('测试准确率 %',fontsize =14)
-     
-            
-            # plt.tight_layout()          
+   
             plt.subplots_adjust(top=0.8)
             plt.title(f'{ds.description}分类测试结果', fontsize=14, y=0.98, pad = 20)
             plt.show()
             
+
+
+            stfig_his = make_subplots(rows=1, cols=1)
+
+            stfig_his.add_trace(
+                go.Bar(
+                    x=labels,
+                    y=values,
+                    # marker_color='green',  # 杆颜色
+                    marker_line_color='black',  # 杆边缘颜色
+                    marker_line_width=1.5,  # 杆边缘宽度
+                    opacity=0.75  # 透明度
+                )
+            )
+
+            stfig_his.update_xaxes(title_text='', tickfont=dict(size=14))
+            stfig_his.update_yaxes(title_text='测试准确率 %', tickfont=dict(size=14))
+
+            stfig_his.update_layout(
+                title_text=f'{ds.description}分类测试结果',
+                title_font_size=14,
+                title_y=0.98,
+                title_pad=dict(t=20),
+                autosize=False,
+                width=27*37.7952755906,  # 转换 inches 到 px
+                height=9*37.7952755906,   # 转换 inches 到 px
+                margin=dict(t=100)  # 调整上边距以适应标题
+            )
+            
             fig, ax = plt.subplots(figsize=(27, 9))
-            ax.bar(labels, ~y_pred.astype(np.bool_),color='g',edgecolor='k',alpha=0.75)
+            ax.bar(labels, 1-y_pred,color='g',edgecolor='k',alpha=0.75)
 
             ax.set_title('各分类器分析结果')
             ax.set_xlabel('分类器')
             # plt.xticks(rotation=45)
             ax.set_ylabel('分类器分类结果')
             plt.show()          
+                
+            stfig_ret = make_subplots(rows=1, cols=1)
+            stfig_ret.add_trace(go.Bar(x=labels,y=1-y_pred,))
+            stfig_ret.update_xaxes(title_text='分类器', tickfont=dict(size=14))
+            stfig_ret.update_yaxes(title_text='分类器分类结果', tickfont=dict(size=14))
+            stfig_ret.update_layout(title_text=f'{ds.description}各分类器分析结果',)
             
             most_common_class = np.argmax(class_counts)
             if  most_common_class ==0:
                 print('多分类器投票结果：产品合格')
             else:
                 print('多分类器投票结果：产品不合格')
+            
+            
+            return [stfig_ret, stfig_his, most_common_class]
                 
                 
 
@@ -1066,23 +1126,29 @@ class Regressor():
             'RandomForestRegressor': RandomForestRegressor(),
             'GradientBoostingRegressor': GradientBoostingRegressor(),
             'KNeighborsRegressor': KNeighborsRegressor(),
-            'MLPRegressor': MLPRegressor(max_iter=1000)
+            # 'MLPRegressor': MLPRegressor(max_iter=1000)
         }
 
         for ds_cnt, ds in enumerate(datasets):
             X = ds.data
             y = ds.target
             
-            # 数据特征
-            desc_report = ds.data.describe()
+            # 数据特征         
+            try:
+                print(ds.data)
+                df = pd.DataFrame(ds.data)
+            except Exception as e:
+                print(f"创建 DataFrame 时发生错误：{e}")
+    
+            desc_report = df.describe()
             
             # 分割数据集
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
             
             # Normalize data using MinMaxScaler
             # scaler = MinMaxScaler()
-            # X_train_scaled = scaler.fit_transform(X_train)
-            # X_test_scaled = scaler.transform(X_test)
+            # X_train = scaler.fit_transform(X_train)
+            # X_test = scaler.transform(X_test)
 
             # # Perform PCA for dimensionality reduction
             # pca = PCA(n_components=0.95)  # Keep 95% of variance
@@ -1092,11 +1158,17 @@ class Regressor():
             # 训练并预测
             results = []
             for name, reg in regressors.items():
+                scaler = MinMaxScaler()
+                # X_train = scaler.fit_transform(X_train)
                 reg.fit(X_train, y_train)
+                # X_train = scaler.inverse_transform(X_train)
+                
                 y_pred = reg.predict(X_test)
-                mse = mean_squared_error(y_test, y_pred)
+                mae = mean_absolute_error(y_test, y_pred)
+                rmse = mean_squared_error(y_test, y_pred, squared=False)
                 r2 = r2_score(y_test, y_pred)
-                results.append((name, mse, r2))
+                me = max_error(y_test, y_pred)
+                results.append((name, mae, rmse,r2,me))
                 
                 # Plotting prediction results
                 plt.figure(figsize=(15, 5))
@@ -1107,11 +1179,13 @@ class Regressor():
                 plt.title(f'{ds.description}-{name}')
                 plt.legend()
                 plt.show()
+                # ff.create_scatterplotmatrix(y_test)
+                stfig = px.scatter_matrix(y_test)
+                stfig.update_layout(title=f'{ds.description}-{name}')
+                stfig.update_xaxes(title='样本 [-]')
+                stfig.update_yaxes(title=''.join(ds.target_names))
 
-            # 将结果转换成DataFrame
-            results_df = pd.DataFrame(results, columns=['Regressor', 'MSE', 'R2'])
-
-            # 打印结果
+            results_df = pd.DataFrame(results, columns=['Regressor', 'MAE', 'rmse','R2','me'])
             print(results_df)
 
             # # 生成数据报告
@@ -1122,40 +1196,50 @@ class Regressor():
             with pd.ExcelWriter('detailed_regression_report.xlsx') as writer:
                 desc_report.to_excel(writer, sheet_name='Data Descriptive Stats')
                 results_df.to_excel(writer, sheet_name='Regression Results')
+                
+        return [stfig, desc_report]
    
     
 def main_process():
+    
+    current_directory = os.getcwd()
+    print('当前工作目录:', current_directory)
 
-    life_analysis = Life_analysis()
+    # life_analysis = Life_analysis()
     
     # 数据读取
     # engine_datasets = Data_Input.read_xls_2022_mainteance()
     # engine_datasets = Data_Input.read_xls_2022_benchtest()
     # engine_datasets =Data_Input.read_xls_waterpump_mt()
-    engine_datasets = Data_Input.read_xls_life_data()
+    # engine_datasets = Data_Input.read_xls_life_data()
+    
+    # engine_datasets = LoadDataset(file_path = FILE_2022_BENCH_TEST_FORMAT)
+    engine_datasets = LoadDataset(file_path = FILE_PART_LIFE)
+    
+    # print(vars(engine_datasets))
     
     # 原始数据可视化和统计指标
     # data_input.stats_analysis(engine_datasets)
-    # Data_visual.plot_data(engine_datasets)
+    # Data_visual.plot_data([engine_datasets])
     
     # 分类训练测试，参数优化，结果对比
-    # Classifier.classifier_vote(engine_datasets)
+    # Classifier.classifier_vote([engine_datasets])
+    # Classifier.classifier_vote_pre([engine_datasets])
     # Classifier.parameter_optimize(engine_datasets)
     # Classifier.classifier_comparison(engine_datasets)
     
     # 数据特征选择
-    # Fault_diagnose.feature_selection(engine_datasets)
+    # Fault_diagnose.feature_selection([engine_datasets])
     # Fault_diagnose.PCA_analysis(engine_datasets)
     
     # 连续数据预测回归
-    # Life_analysis.life_weibull(engine_datasets)
-    Regressor.predict(engine_datasets)
+    # Life_analysis.life_weibull([engine_datasets])
+    Regressor.predict([engine_datasets])
     
     # ToDoList 
     # 神经网络算法，图像识别算法LSTMCNN，声音振动频谱变化算法
     # 报告自动生成，数据库输入输出，
-    
-    
+
 if __name__ == '__main__':
    main_process()
 

@@ -99,38 +99,7 @@
       .then(response => console.log(response))
       .catch(err => console.error('Error:', err));
 
-      // fetch('/api/answer', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ question: question }),
-      //   headers: {
-      //     'Content-Type': 'application/json'
-      //   }
-      // })
-      // .then(response => response.json())
-      // .then(data => {
-      //   answerDiv.innerHTML = data.answer;
-      // })
-      // .catch(error => {
-      //   console.error('Error:', error);
-      // });
     });
   </script>
 </body>
 </html>
-
-
-<!-- {
-  "choices": [
-    {
-      "message": {
-        "role": "assistant",
-        "content": "你好啊！有什么我可以帮助你的吗？"
-      }
-    }
-  ],
-  "usage": {
-    "prompt_tokens": 32,
-    "completion_tokens": 24,
-    "total_tokens": 56
-  }
-} -->
