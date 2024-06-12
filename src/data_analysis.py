@@ -7,17 +7,16 @@ import csv
 import struct
 from matplotlib import pyplot as plt
 from matplotlib.colors import ListedColormap
-import mpl_toolkits.mplot3d 
 import random
 
 from scipy.stats import weibull_min
 
 from stat import FILE_ATTRIBUTE_ARCHIVE
-from bokeh.io import output_file, show
-from bokeh.models import ColumnDataSource
-from bokeh.models.widgets import DataTable, StringEditor, NumberEditor, TableColumn
-from bokeh.layouts import column, row
-from bokeh.plotting import figure
+# from bokeh.io import output_file, show
+# from bokeh.models import ColumnDataSource
+# from bokeh.models.widgets import DataTable, StringEditor, NumberEditor, TableColumn
+# from bokeh.layouts import column, row
+# from bokeh.plotting import figure
 
 
 from sklearn.decomposition import PCA
