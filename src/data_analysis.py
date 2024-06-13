@@ -53,7 +53,7 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.neural_network import MLPRegressor
 
-import seaborn as sns
+# import seaborn as sns
 import streamlit as st
 import plotly.figure_factory as ff
 import plotly.express as px
