@@ -28,7 +28,7 @@ from sklearn import svm
 from sklearn.pipeline import Pipeline
 from sklearn.datasets import make_circles, make_classification, make_moons
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
-from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
+from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier, GradientBoostingClassifier
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF
 from sklearn.inspection import DecisionBoundaryDisplay
@@ -53,7 +53,7 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.neural_network import MLPRegressor
 
-# import seaborn as sns
+import seaborn as sns
 import streamlit as st
 import plotly.figure_factory as ff
 import plotly.express as px
@@ -71,12 +71,12 @@ FILE_FAKE_BENCH_CAN = './data/fake_bench_CANdata.xlsx'
 
 FILE_2022_BENCH_TEST_FORMAT = './data/2022_benchtest_format.xlsx'
 FILE_FAKE_MAINTEANCE = './data/fake_mainteance_data.xlsx'
-FILE_PART_LIFE =  './data/rul_pump_data_from_kaggle.xlsx'  #               './data/fakedata_waterpump_life.xlsx'
+FILE_PART_LIFE = './data/fakedata_waterpump_life.xlsx'
 FILE_WATERPUMP_MT = './data/fakedata_waterpump_mainteance.xlsx'
 
 
-
 class CustomDataset():
+    
     # 输入数据定义接口, numpy转对象
     def __init__(self, data, target, feature_names=None, target_names=None, description=None,file_path=None):
         self.data = data
@@ -106,15 +106,8 @@ class CustomDataset():
             
     
 class LoadDataset():
-    # def __init__(self, file_path, description=None):
 
-        # df = pd.read_excel(file_path)
-        # # 最后一列是目标列，其他是特征列
-        # self.data = df.iloc[:, :-1].values
-        # self.target = df.iloc[:, -1].values
-        # self.feature_names = df.columns[:-1].tolist()
-        # self.target_names = df.columns[-1]
-        # self.description = f'Data loaded from {file_path}'
+    # # 最后一列是目标列，其他是特征列
         
     def __init__(self, file_path=None, description=None):
         self.data = None
@@ -128,11 +121,8 @@ class LoadDataset():
             
     def load_from_file(self, file_path):
         df = pd.read_excel(file_path)
-        # self.data = df.iloc[:, :-1].values
-        # self.target = df.iloc[:, -1].values
-        random_list = [random.randint(1, 150000) for _ in range(100)]
-        self.data = df.iloc[random_list, :-1].values
-        self.target = df.iloc[random_list, -1].values
+        self.data = df.iloc[:, :-1].values
+        self.target = df.iloc[:, -1].values
         self.feature_names = df.columns[:-1].tolist()
         self.target_names = df.columns[-1]
         self.description = f'从文件路径 {file_path} 加载的数据'
@@ -275,7 +265,7 @@ class Data_Input():
         feature_names = df.columns[0:2]
         # 创建数据集对象
         target_names = df.columns[-1]
-        description = '水泵流量测试数据和寿命'
+        description = '测试数据和寿命'
         dataset = CustomDataset(data=features, target=life_rets, feature_names=feature_names,
                                     target_names=target_names, description=description)
         print(vars(dataset))
@@ -303,6 +293,85 @@ class Data_visual():
     
     def __init__(self) -> None:
         pass
+    
+    @staticmethod         
+    def analyze_data(datasets):
+        
+        """
+        分析输入的M*N numpy数据，输出统计特征，分布图，箱线图，相关性热图和成对关系图。
+        """
+        dataset = datasets[0]
+        M, N = dataset.data.shape
+        N = min(N,5)
+        data = dataset.data[:,0:N]
+        names = dataset.feature_names[0:N]
+        
+        # Convert the numpy array to a pandas DataFrame
+        df = pd.DataFrame(data)
+
+        st.write("""
+        # 元数据分析工具
+        
+        元数据分析是数据分析中的重要步骤，通过分析数据的统计特征和分布情况，我们可以发现数据采集中的异常值、离群值、数据的离散程度以及特征之间的相关性。这些信息对于进一步的数据分析和建模至关重要。
+        """)
+
+        # Calculate statistical metrics
+        stats = df.describe().T
+        stats['range'] = stats['max'] - stats['min']
+        stats['variance'] = df.var()
+        stats['skewness'] = df.skew()
+        stats['kurtosis'] = df.kurtosis()
+
+        st.write("## 数据统计特征")
+        st.write("以下表格显示了数据的基本统计特征，包括均值、标准差、最小值、最大值、范围、方差、偏度和峰度。")
+        st.write("""
+        - **均值**反映了数据的集中趋势。
+        - **标准差**和**方差**显示了数据的离散程度。
+        - **偏度**和**峰度**反映了数据分布的形状特征。
+        - **范围**（最大值 - 最小值）提供了数据的跨度信息。
+        """)
+        st.write(stats)
+
+        # Calculate correlation matrix
+        corr_matrix = df.corr()
+
+        st.write("## 每个特征的直方图")
+        st.write("以下直方图展示了每个特征的分布情况，有助于理解数据的集中趋势和离散程度。")
+        st.write("""
+        - 直方图显示了各特征值的频率分布。
+        - 可以观察到数据是否呈现正态分布，是否存在偏态或多峰现象。
+        """)
+        df.hist(bins=30, figsize=(20, 15))
+        st.pyplot(plt)
+
+        st.write("## 每个特征的箱线图")
+        st.write("以下箱线图展示了每个特征的分布及异常值情况，有助于识别数据中的异常点和四分位数分布。")
+        st.write("""
+        - 箱线图显示了中位数、上四分位数和下四分位数。
+        - 图中还显示了数据的异常值（离群点），这些点可能是数据采集中的异常值。
+        """)
+        df.plot(kind='box', subplots=True, layout=(int(np.ceil(df.shape[1] / 3)), 3), figsize=(20, 15))
+        st.pyplot(plt)
+
+        st.write("## 特征之间的相关性热图")
+        st.write("以下热图展示了特征之间的相关性，有助于识别特征之间的相互关系。")
+        st.write("""
+        - 热图中的颜色表示特征之间的相关性系数。
+        - 正相关性用红色表示，负相关性用蓝色表示。
+        - 数值越接近1或-1，表示相关性越强。高相关性可以提示我们某些特征之间的线性关系。
+        """)
+        plt.figure(figsize=(12, 8))
+        sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', vmax=1.0, vmin=-1.0, linewidths=0.1)
+        st.pyplot(plt)
+
+        st.write("## 成对特征之间的关系")
+        st.write("以下成对关系图展示了特征之间的散点图矩阵，有助于观察特征之间的线性或非线性关系。")
+        st.write("""
+        - 成对关系图显示了每对特征之间的散点图。
+        - 可以观察到特征之间
+        """)
+        sns.pairplot(df)
+        st.pyplot(plt)
     
     @staticmethod
     def plot_data(datasets):
@@ -453,6 +522,18 @@ class Life_analysis():
         
         # 输入：产品寿命一维数组
         # 输出：预期寿命（寿命中位数）；寿命分布图；寿命箱体图；寿命威布尔拟合图；寿命关键参数（最小最大）
+        """
+        生成excel 100行 第一列低速流量，第二列高速流量，第三列年龄，第四列寿命，
+        读取数据，
+        展示数据，
+        根据第四列寿命列出weibull分布画图
+        给出中位数寿命，寿命概率分布特征
+        给出未来几年寿命到期失效产品数量
+        根据数据划分训练集测试集
+        测试回归算法准确率和分布，给出总评价
+        给出同一个产品各算法的预测值，真值。
+        给出综合预测寿命的结果。
+        """
         
         for ds_cnt, ds in enumerate(datasets):
             # preprocess dataset, split into training and test part
@@ -460,12 +541,6 @@ class Life_analysis():
             data = ds.data
             life_dataset = ds.target
         
-        print(life_dataset)
-        plt.scatter(np.arange(life_dataset.shape[0]), life_dataset)
-        plt.xlabel('水泵样本')
-        plt.ylabel('水泵样本寿命（天）')
-        plt.title('水泵样本寿命散点图图')
-        plt.show()
         
         shape, loc, scale = weibull_min.fit(life_dataset, floc=0)
         sorted_data = np.sort(life_dataset)
@@ -515,37 +590,45 @@ class Life_analysis():
         probability = weibull_min.cdf(end_time, shape, loc, scale) - weibull_min.cdf(start_time, shape, loc, scale)
         print("指定时间窗口的概率：", probability)
         
-        service_times = [100,200,300,400,500,600,700]
-        time_period = 90
-        
-        return Life_analysis.calculate_failure_count(service_times, time_period, shape, scale)
-    
+
     @staticmethod
-    def calculate_failure_count(service_times, time_period, shape, scale):
-        # 计算未来时间窗口的失效个数
-        # :param time_period: 未来时间窗口
-        # :param service_times:  产品现在的服役时长列表
-        # :return: DataFrame, 未来时间窗口的失效个数表格
-    
-        total_failure_count = 0
-        dist = weibull_min(shape, scale=scale)
+    def remaining_lifetime_distribution(ages, expected_lifetimes):
+        # 计算剩余寿命
+        remaining_lifetimes = expected_lifetimes - ages
 
-        for service_time in service_times:
-            service_time_next = time_period + service_time
-            failure_count = (dist.sf(service_time) - dist.sf(service_time_next))/dist.sf(service_time)
-            
-            total_failure_count += failure_count
+        # 定义季度长度
+        quarter_length = 90 
 
-        total_failure_count = int(total_failure_count)
-
-        df = pd.DataFrame({
-            '时间窗口（天）': time_period,
-            '失效产品个数': total_failure_count
-        }, index=[0])
-        print(df)
+        # 计算剩余寿命的季度分布
+        max_remaining_lifetime = max(remaining_lifetimes)
+        num_quarters = int(np.ceil(max_remaining_lifetime / quarter_length))
         
-        return df
+        quarters = [f'Q{i+1}' for i in range(num_quarters)]
+        remaining_distribution = []
         
+        for i in range(num_quarters):
+            start_day = i * quarter_length
+            end_day = (i + 1) * quarter_length
+            count = np.sum((remaining_lifetimes >= start_day) & (remaining_lifetimes < end_day))
+            remaining_distribution.append((quarters[i], count))
+
+        remaining_df = pd.DataFrame(remaining_distribution, columns=['季度', '产品数量'])
+
+        # 绘制剩余寿命分布图
+        plt.figure(figsize=(10, 6))
+        plt.bar(remaining_df['季度'], remaining_df['产品数量'], color='skyblue')
+        plt.xlabel('季度')
+        plt.ylabel('产品数量')
+        plt.title('未来预期失效产品分布')
+        plt.xticks(rotation=45)
+        
+        # 使用 Streamlit 显示图像和表格
+        st.write("### 未来预期失效产品")
+        st.write(" - 此结果用于维修库存备品参考")
+        st.write(" - 根据产品寿命预测结果，未来失效产品数量如下")
+        st.pyplot(plt)
+        st.write(remaining_df)
+
 
 class Fault_diagnose():
     
@@ -604,108 +687,54 @@ class Fault_diagnose():
     
     @staticmethod
     def feature_selection(dataset):
-
-        # #############################################################################
-        # Import some data to play with
-
-        # The iris dataset
-        
         for ds_cnt, ds in enumerate(dataset):
-            # X, y = ds
             X = ds.data
             y = ds.target
 
-            # Some noisy data not correlated
-            E = np.random.RandomState(42).uniform(0, 0.1, size=(X.shape[0], 20))
+            X_indices = np.arange(X.shape[1])
 
-            # Add the noisy data to the informative features
-            X = np.hstack((X, E))
+            st.write("## 数据展示")
+            st.write("单行数据为某发动机检测装配过程测量数据")
+            st.write(pd.DataFrame(X).head())
+            st.write(f"标签分布: {np.unique(y)}")
 
-            # Split dataset to select feature and evaluate the classifier
-            X_train, X_test, y_train, y_test = train_test_split(
-                    X, y, stratify=y, random_state=0
-            )
+            # 定义分类器字典
+            models = {
+                "线性SVM": SVC(kernel="linear", C=0.025, random_state=42),
+                "决策树": DecisionTreeClassifier(max_depth=5, random_state=42),
+                "随机森林": RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1, random_state=42),
+                "梯度提升": GradientBoostingClassifier(random_state=42)
+            }
 
-            plt.figure(1)
-            plt.clf()
+            # 使用循环调用分类器并绘制特征重要性
+            for model_name, model in models.items():
+                clf = Pipeline([('preprocessing', MinMaxScaler()), ('classifier', model)])
+                clf.fit(X, y)
 
-            X_indices = np.arange(X.shape[-1])
+                # 获取特征重要性
+                if hasattr(clf.named_steps['classifier'], 'coef_'):
+                    feature_importances = np.abs(clf.named_steps['classifier'].coef_).sum(axis=0)
+                elif hasattr(clf.named_steps['classifier'], 'feature_importances_'):
+                    feature_importances = clf.named_steps['classifier'].feature_importances_
+                else:
+                    feature_importances = np.zeros(X.shape[1])
 
-            # #############################################################################
-            # Univariate feature selection with F-test for feature scoring
-            # We use the default selection function to select the four
-            # most significant features
+                feature_importances /= feature_importances.sum()
 
-            selector = SelectKBest(f_classif, k=4)
-            selector.fit(X_train, y_train)
-            scores = -np.log10(selector.pvalues_)
-            scores /= scores.max()
-            plt.bar(X_indices - .45, scores, width=.2,
-                    label=r'Univariate score ($-Log(p_{value})$)')
-            plt.show()
-
-            # #############################################################################
-            # Compare to the weights of an SVM
-            clf = make_pipeline(MinMaxScaler(), LinearSVC())
-            clf.fit(X_train, y_train)
-            print('Classification accuracy without selecting features: {:.3f}'
-                .format(clf.score(X_test, y_test)))
-
-            svm_weights = np.abs(clf[-1].coef_).sum(axis=0)
-            svm_weights /= svm_weights.sum()
-
-            plt.bar(X_indices - .25, svm_weights, width=.2, label='SVM weight')
-            plt.title("可疑检测项目排查")
-            plt.xlabel('检测项目 [-]')
-            plt.yticks(())
-            plt.ylabel('检测项目权重')
-            plt.axis('tight')
-            plt.legend(loc='upper right')
-            plt.show()
-            
-            clf_selected = make_pipeline(
-                    SelectKBest(f_classif, k=4), MinMaxScaler(), LinearSVC()
-            )
-            clf_selected.fit(X_train, y_train)
-            print('Classification accuracy after univariate feature selection: {:.3f}'
-                .format(clf_selected.score(X_test, y_test)))
-
-            svm_weights_selected = np.abs(clf_selected[-1].coef_).sum(axis=0)
-            svm_weights_selected /= svm_weights_selected.sum()
-
-            plt.bar(X_indices[selector.get_support()] - .05, svm_weights_selected,
-                    width=.2, label='SVM weights after selection')
-
-            plt.title("可疑检测项目排查")
-            plt.xlabel('检测项目 [-]')
-            plt.yticks(())
-            plt.ylabel('检测项目权重')
-            plt.axis('tight')
-            plt.legend(loc='upper right')
-            plt.show()
-                        
-            # # 创建并训练决策树分类器
-            clf_dtree = Pipeline([('preprocessing', MinMaxScaler()),  ('classifier', DecisionTreeClassifier()) ])
-            clf_dtree.fit(X_train, y_train)
-            clf_dtree_model = clf_dtree.named_steps['classifier']
-            feature_weights = clf_dtree_model.feature_importances_
-            plt.bar(X_indices, feature_weights,width=.2, label='decision tree weights')
-            plt.title("可疑检测项目排查")
-            plt.xlabel('检测项目 [-]')
-            plt.yticks(())
-            plt.ylabel('检测项目权重')
-            plt.axis('tight')
-            plt.legend(loc='upper right')
-            plt.show()          
-            
-            stfig_rate = make_subplots(rows=1, cols=1)
-            stfig_rate.add_trace(go.Bar(x=X_indices,y=feature_weights))
-            stfig_rate.update_xaxes(title_text='检测项目 [-]', tickfont=dict(size=14))
-            stfig_rate.update_yaxes(title_text='检测项目权重', tickfont=dict(size=14))
-            stfig_rate.update_layout(title_text=f'{ds.description}可疑检测项目排查') 
-            
-            print('故障产品疑似存在问题的检测项目为','')
-            return [stfig_rate , feature_weights]   
+                plt.figure()
+                plt.bar(X_indices, feature_importances)
+                plt.xlabel('特征索引 [-]')
+                plt.ylabel(f'{model_name} 权重')
+                plt.title(f'{model_name} 特征重要性')
+                st.write(f"## {model_name}")
+                st.write(f"-  基于{model_name}模型的特征重要性")
+                st.pyplot(plt)
+        
+       
+        st.write(f"## 问题检测项")
+        st.write(f"问题检测项索引: {np.argmax(feature_importances)}")
+        
+        return 
   
         
 class Classifier():
@@ -851,140 +880,96 @@ class Classifier():
 
     @staticmethod
     def classifier_vote_pre(datasets):
-    # 分类器比较
-    # 输入 数据集; 最后一行样本作为需要检测内容
-    # 输出 历史数据下各分类器的准确率；各分类器对当前测试数据的分类；投票结果；(数据和图像)
-    
-        names = [
-            "K近邻",#"Nearest Neighbors",
-            "线性SVM",#"Linear SVM", svm_classifier.coef_来获取特征权重
-            "径向SVM",#"RBF SVM",
-            "高斯过程",#"Gaussian Process",
-            "决策树",#"Decision Tree",tree_classifier.feature_importances_来获取特征权重
-            "随机森林",#"Random Forest",feature_importances_属性来获取特征权重
-            "神经网络",#"Neural Net",
-            "增强学习",#"AdaBoost",feature_importances_属性来获取特征权重
-            "贝叶斯",#"Naive Bayes",
-            "二次判别",#"QDA",feature_importances_属性来获取特征权重
-            ]
+        models = {
+            "K近邻": KNeighborsClassifier(3),
+            "线性SVM": SVC(kernel="linear", C=0.025, random_state=42),
+            "径向SVM": SVC(gamma=2, C=1, random_state=42),
+            "高斯过程": GaussianProcessClassifier(1.0 * RBF(1.0), random_state=42),
+            "决策树": DecisionTreeClassifier(max_depth=5, random_state=42),
+            "随机森林": RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1, random_state=42),
+            "神经网络": MLPClassifier(alpha=1, max_iter=1000, random_state=42),
+            "增强学习": AdaBoostClassifier(random_state=42),
+            "贝叶斯": GaussianNB(),
+            "二次判别": QuadraticDiscriminantAnalysis()
+        }
 
-        classifiers = [
-            KNeighborsClassifier(3),
-            SVC(kernel="linear", C=0.025, random_state=42),
-            SVC(gamma=2, C=1, random_state=42),
-            GaussianProcessClassifier(1.0 * RBF(1.0), random_state=42),
-            DecisionTreeClassifier(max_depth=5, random_state=42),
-            RandomForestClassifier(
-                max_depth=5, n_estimators=10, max_features=1, random_state=42
-            ),
-            MLPClassifier(alpha=1, max_iter=1000, random_state=42),
-            AdaBoostClassifier(random_state=42),
-            GaussianNB(),
-            QuadraticDiscriminantAnalysis(),
-            ]
+        for ds in datasets:
+            X, y = ds.data, ds.target
 
-        figure = plt.figure(figsize=(27, 9))
-        i = 1
-        # iterate over datasets
-        for ds_cnt, ds in enumerate(datasets):
-            # preprocess dataset, split into training and test part
-            # X, y = ds
-            X = ds.data
-            y = ds.target
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.1, random_state=42
-            )
+            st.write("## 数据展示")
+            st.write("单行数据为某发动机台架试验数据")
+            st.write(pd.DataFrame(X).head())
+            st.write(f"标签分布: {np.unique(y)}")
 
-            i += 1
-            # iterate over classifiers
-            j=0
-            
-            y_pred = np.zeros(len(classifiers))
-            score = np.zeros(len(classifiers))
-            for name, clf in zip(names, classifiers):
-                ax = plt.subplot(len(datasets), len(classifiers) + 1, i)
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-                clf = make_pipeline(StandardScaler(), clf)
+            accuracies = {}
+            predictions = []
+
+            for name, model in models.items():
+                clf = make_pipeline(StandardScaler(), model)
                 clf.fit(X_train, y_train)
-                score[j] = clf.score(X_test, y_test)
-                
-                # 使用分类器进行预测
-                y_pred[j] = clf.predict([X[-1,:]])
-                i += 1
-                j += 1
-            
-            # 统计投票结果
-            class_counts = np.bincount(y_pred.astype(np.int64))
-            labels = names
-            values = score * 100
-            # 创建柱状图
-            fig, ax = plt.subplots(figsize=(27, 9))
-            ax.bar(labels, values,color='g',edgecolor='k',alpha=0.75)
-            plt.xticks(fontsize=14)
-            ax.set_xlabel('')
-            # plt.xticks(rotation=45)
-            ax.set_ylabel('测试准确率 %',fontsize =14)
-   
-            plt.subplots_adjust(top=0.8)
-            plt.title(f'{ds.description}分类测试结果', fontsize=14, y=0.98, pad = 20)
-            plt.show()
-            
-
-
-            stfig_his = make_subplots(rows=1, cols=1)
-
-            stfig_his.add_trace(
-                go.Bar(
-                    x=labels,
-                    y=values,
-                    # marker_color='green',  # 杆颜色
-                    marker_line_color='black',  # 杆边缘颜色
-                    marker_line_width=1.5,  # 杆边缘宽度
-                    opacity=0.75  # 透明度
-                )
-            )
-
-            stfig_his.update_xaxes(title_text='', tickfont=dict(size=14))
-            stfig_his.update_yaxes(title_text='测试准确率 %', tickfont=dict(size=14))
-
-            stfig_his.update_layout(
-                title_text=f'{ds.description}分类测试结果',
-                title_font_size=14,
-                title_y=0.98,
-                title_pad=dict(t=20),
-                autosize=False,
-                width=27*37.7952755906,  # 转换 inches 到 px
-                height=9*37.7952755906,   # 转换 inches 到 px
-                margin=dict(t=100)  # 调整上边距以适应标题
-            )
-            
-            fig, ax = plt.subplots(figsize=(27, 9))
-            ax.bar(labels, 1-y_pred,color='g',edgecolor='k',alpha=0.75)
-
-            ax.set_title('各分类器分析结果')
-            ax.set_xlabel('分类器')
-            # plt.xticks(rotation=45)
-            ax.set_ylabel('分类器分类结果')
-            plt.show()          
-                
-            stfig_ret = make_subplots(rows=1, cols=1)
-            stfig_ret.add_trace(go.Bar(x=labels,y=1-y_pred,))
-            stfig_ret.update_xaxes(title_text='分类器', tickfont=dict(size=14))
-            stfig_ret.update_yaxes(title_text='分类器分类结果', tickfont=dict(size=14))
-            stfig_ret.update_layout(title_text=f'{ds.description}各分类器分析结果',)
-            
-            most_common_class = np.argmax(class_counts)
-            if  most_common_class ==0:
-                print('多分类器投票结果：产品合格')
-            else:
-                print('多分类器投票结果：产品不合格')
-            
-            
-            return [stfig_ret, stfig_his, most_common_class]
-                
+                y_pred = clf.predict(X_test)
+                accuracies[name] = accuracy_score(y_test, y_pred)
+                predictions.append(y_test)
                 
 
-    # ...[其他导入和Classifier类定义]...
+            st.write("### 训练算法\n - 将数据分为训练集和测试集")
+            st.write(f" - 基于训练集应用机器学习算法: {', '.join(models.keys())}\n")
+            st.write(" - 基于测试集验证结果")
+
+            # Plotting the accuracy
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.bar(list(models.keys()), list(accuracies.values()), color='g', edgecolor='k', alpha=0.75)
+            ax.set_xticklabels(list(models.keys()), rotation=45, ha='right')
+            ax.set_ylabel('质量判定结果准确率 %')
+            st.pyplot(fig)
+            
+            # Select the best model based on accuracy
+            best_model_name = max(accuracies, key=accuracies.get)
+            best_model = models[best_model_name]
+
+            # Make predictions with all models for voting
+            predictions = np.array(predictions)
+            final_predictions = np.apply_along_axis(lambda x: np.bincount(x.astype(int)).argmax(), axis=0, arr=predictions)
+
+            # Calculate accuracy for the final predictions
+            final_accuracy = accuracy_score(y_test, final_predictions)
+
+            # st.write(f"标签分布ytest: {np.unique(y_test)}")
+            # st.write(f"标签分布ypred: {np.unique(best_model.predict(X_test))}")
+            # Display classification report for the best model
+            # st.write("### 最佳模型的分类报告")
+            # best_model_report = classification_report(y_test, best_model.predict(X_test), target_names=["Class 0", "Class 1"], output_dict=True)
+            # st.write(pd.DataFrame(best_model_report).transpose())
+
+            # Plot confusion matrix for the final predictions
+            st.write("### 最终投票结果的混淆矩阵")
+            st.write(f"解释：\n- True Negatives (TN): 实际为0且预测为0的数量\n- False Positives (FP): 实际为0但预测为1的数量\n- False Negatives (FN): 实际为1但预测为0的数量\n- True Positives (TP): 实际为1且预测为1的数量")
+            cm = confusion_matrix(y_test, final_predictions)
+            fig_cm = px.imshow(cm, text_auto=True, x=["预测分类 0", "预测分类 1"], y=["实际分类 0", "实际分类 1"])
+            st.plotly_chart(fig_cm)
+            
+            st.write("### 结论")
+            st.write(f"""
+            - 采用的模型包括: {', '.join(models.keys())}。
+            - 最佳模型是 {best_model_name}，其在测试集上的准确度为 {accuracies[best_model_name]:.2f}。
+            - 最终的预测结果通过多模型投票集成法决定，投票结果的准确度为 {final_accuracy:.2f}。
+            - 混淆矩阵展示了最终投票结果的分布情况。
+            """)
+            
+            # 创建数据框
+            df_results = pd.DataFrame({
+                "检测方法": models.keys(),
+                "预测结果": ["合格" if pred[0] == 0 else "不合格" for pred in predictions]
+            })
+            final_result = "合格" if final_predictions[0] == 0 else "不合格"
+            # 显示结果
+            st.write("### 各分类器的预测结果")
+            st.write(df_results)
+
+            st.write(f"### 最终投票结果\n该产品质量评价结果: {final_result}")
+
 
     @staticmethod
     def classifier_vote(datasets):
@@ -1112,92 +1097,91 @@ class Regressor():
         pass
     
     @staticmethod
-    def predict(datasets):   
-        
-        # 初始化回归器字典
+    def predict(datasets):
+       
         regressors = {
-            'LinearRegression': LinearRegression(),
-            'Ridge': Ridge(),
-            'Lasso': Lasso(),
-            'ElasticNet': ElasticNet(),
-            'SVR': SVR(kernel='linear'),
-            'DecisionTreeRegressor': DecisionTreeRegressor(),
-            'RandomForestRegressor': RandomForestRegressor(),
-            'GradientBoostingRegressor': GradientBoostingRegressor(),
-            'KNeighborsRegressor': KNeighborsRegressor(),
-            # 'MLPRegressor': MLPRegressor(max_iter=1000)
+            '线性回归': LinearRegression(),# LinearRegression
+            # '岭回归': Ridge(),# Ridge线性回归的基础上加入L2正则化，防止过拟合
+            # 'Lasso回归': Lasso(),# Lasso 在线性回归的基础上加入L1正则化，可以进行特征选择。
+            # '弹性网络回归': ElasticNet(),# ElasticNet 结合了L1和L2正则化的回归方法
+            # '支持向量回归': SVR(kernel='linear'),# SVR
+            '决策树回归': DecisionTreeRegressor(),# DecisionTreeRegressor
+            '随机森林回归': RandomForestRegressor(),# RandomForestRegressor
+            '梯度提升回归 ': GradientBoostingRegressor(),# GradientBoostingRegressor
+            'K邻近回归': KNeighborsRegressor(),# KNeighborsRegressor
         }
 
         for ds_cnt, ds in enumerate(datasets):
             X = ds.data
             y = ds.target
-            
-            # 数据特征         
-            try:
-                print(ds.data)
-                df = pd.DataFrame(ds.data)
-            except Exception as e:
-                print(f"创建 DataFrame 时发生错误：{e}")
-    
+            df = pd.DataFrame(ds.data)
             desc_report = df.describe()
+            print('X' ,X)
+            print('y' ,y)
+            st.write("## 数据展示")
+            st.write("单行数据为某产品检测数据，检测时年龄，和最终寿命数据")
+            # ,columns=[ds.feature_names,ds.target_names]
+            st.write(pd.DataFrame(np.hstack((X,y.reshape(-1,1)))).head())
             
-            # 分割数据集
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+            st.write("### 训练算法\n - 将数据分为训练集和测试集")
+            st.write(f" - 基于训练集应用机器学习回归算法: {', '.join(regressors.keys())}\n")
+            st.write(" - 基于测试集验证结果")
             
-            # Normalize data using MinMaxScaler
-            # scaler = MinMaxScaler()
-            # X_train = scaler.fit_transform(X_train)
-            # X_test = scaler.transform(X_test)
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=0)
 
-            # # Perform PCA for dimensionality reduction
-            # pca = PCA(n_components=0.95)  # Keep 95% of variance
-            # X_train_pca = pca.fit_transform(X_train_scaled)
-            # X_test_pca = pca.transform(X_test_scaled)
-
-            # 训练并预测
             results = []
+            predictions = []
             for name, reg in regressors.items():
                 scaler = MinMaxScaler()
-                # X_train = scaler.fit_transform(X_train)
-                reg.fit(X_train, y_train)
-                # X_train = scaler.inverse_transform(X_train)
+                X_train_scaled = scaler.fit_transform(X_train)
+                X_test_scaled = scaler.transform(X_test)
                 
-                y_pred = reg.predict(X_test)
+                reg.fit(X_train_scaled, y_train)
+                y_pred = reg.predict(X_test_scaled)
+                
                 mae = mean_absolute_error(y_test, y_pred)
                 rmse = mean_squared_error(y_test, y_pred, squared=False)
                 r2 = r2_score(y_test, y_pred)
                 me = max_error(y_test, y_pred)
-                results.append((name, mae, rmse,r2,me))
+                results.append((name, mae, rmse, r2, me))
+                predictions.append((name, y_pred))
                 
                 # Plotting prediction results
                 plt.figure(figsize=(15, 5))
-                plt.plot(y_test, label='True Values')
-                plt.plot(y_pred, label='Predicted Values')
+                plt.plot(y_test, label='真实值')
+                plt.plot(y_pred, label='预测值')
                 plt.xlabel('样本 [-]')
                 plt.ylabel(ds.target_names)
-                plt.title(f'{ds.description}-{name}')
+                plt.title(f'{name}')
                 plt.legend()
                 plt.show()
-                # ff.create_scatterplotmatrix(y_test)
-                stfig = px.scatter_matrix(y_test)
-                stfig.update_layout(title=f'{ds.description}-{name}')
-                stfig.update_xaxes(title='样本 [-]')
-                stfig.update_yaxes(title=''.join(ds.target_names))
+                st.write(f"## {name}")
+                st.write(f"-  基于{name}回归算法的预测寿命与真实值对比")
+                st.pyplot(plt)
 
-            results_df = pd.DataFrame(results, columns=['Regressor', 'MAE', 'rmse','R2','me'])
-            print(results_df)
+            results_df = pd.DataFrame(results, columns=['Regressor', 'MAE', 'RMSE', 'R2', 'ME'])
 
-            # # 生成数据报告
-            # report = results_df.sort_values(by='R2', ascending=False)
-            # report.to_csv('regression_results_report.csv', index=False)
+            # Plotting MAE for each regressor
+            plt.figure(figsize=(10, 6))
+            sns.barplot(x='Regressor', y='MAE', data=results_df)
+            plt.title('MAE for each Regressor')
+            plt.xticks(rotation=45)
+            plt.show()
+            st.write("## 测试结果")
+            st.write("- MAE 预测值与实际值之间绝对误差的平均值，反映了预测值与实际值之间的平均偏差程度")
+            st.write("-  RMSE 预测值与实际值之间误差的平方平均值的平方根。它反映了预测值与实际值之间的标准差")
+            st.write(results_df)
+            st.pyplot(plt)
             
-            # 生成详细数据报告
-            with pd.ExcelWriter('detailed_regression_report.xlsx') as writer:
-                desc_report.to_excel(writer, sheet_name='Data Descriptive Stats')
-                results_df.to_excel(writer, sheet_name='Regression Results')
-                
-        return [stfig, desc_report]
-   
+            # Create table with predictions
+            # pred_df = pd.DataFrame(predictions, columns=['Regressor', 'Predicted Lifetime'])
+            # avg_pred = np.mean([y for _, y in predictions], axis=0)
+            # pred_df.loc[len(pred_df)] = ['Average', avg_pred]
+            # pred_df.loc[len(pred_df)] = ['True Lifetime', y_test]
+            # st.write(pred_df)
+
+            Life_analysis.remaining_lifetime_distribution(X_test[:,-1],y_pred)
+    
     
 def main_process():
     

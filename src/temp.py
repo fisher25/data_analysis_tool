@@ -1,124 +1,114 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline, Pipeline
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.svm import LinearSVC
+from sklearn.tree import DecisionTreeClassifier
 
-# 使用 st.write 函数嵌入 HTML 网页
-def embed_html_page():
-    html_code = '''
+# 功能选择函数
+def feature_selection(dataset):
+    for ds_cnt, ds in enumerate(dataset):
+        X = ds.data
+        y = ds.target
 
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="UTF-8">
-    <title>AI发动机维修数字专家</title>
-    <style>
-        /* 添加样式以美化界面 */
-        body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-        }
+        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, random_state=0)
+
+        X_indices = np.arange(X.shape[1])
+
+        # 单变量特征选择
+        selector = SelectKBest(f_classif, k=4)
+        selector.fit(X_train, y_train)
+        scores = -np.log10(selector.pvalues_)
+        scores /= scores.max()
+
+        plt.figure(figsize=(10, 6))
+        plt.bar(X_indices - 0.45, scores, width=0.2, label=r'Univariate score ($-Log(p_{value})$)')
+        plt.title("Univariate Feature Scores")
+        plt.xlabel('Feature Index')
+        plt.ylabel('Score')
+        plt.legend(loc='upper right')
+        st.pyplot(plt)
+        plt.clf()
+
+        # SVM 权重
+        clf = make_pipeline(MinMaxScaler(), LinearSVC())
+        clf.fit(X_train, y_train)
+        print('Classification accuracy without selecting features: {:.3f}'.format(clf.score(X_test, y_test)))
+
+        svm_weights = np.abs(clf[-1].coef_).sum(axis=0)
+        svm_weights /= svm_weights.sum()
+
+        plt.bar(X_indices - 0.25, svm_weights, width=0.2, label='SVM weight')
+        plt.title("SVM Feature Weights")
+        plt.xlabel('Feature Index')
+        plt.ylabel('Weight')
+        plt.legend(loc='upper right')
+        st.pyplot(plt)
+        plt.clf()
+
+        # 选择特征后的 SVM 权重
+        clf_selected = make_pipeline(SelectKBest(f_classif, k=4), MinMaxScaler(), LinearSVC())
+        clf_selected.fit(X_train, y_train)
+        print('Classification accuracy after univariate feature selection: {:.3f}'.format(clf_selected.score(X_test, y_test)))
+
+        svm_weights_selected = np.abs(clf_selected[-1].coef_).sum(axis=0)
+        svm_weights_selected /= svm_weights_selected.sum()
+
+        selected_indices = X_indices[selector.get_support()]
+
+        plt.bar(selected_indices - 0.05, svm_weights_selected, width=0.2, label='SVM weights after selection')
+        plt.title("SVM Feature Weights After Selection")
+        plt.xlabel('Feature Index')
+        plt.ylabel('Weight')
+        plt.legend(loc='upper right')
+        st.pyplot(plt)
+        plt.clf()
+
+        # 决策树特征重要性
+        clf_dtree = Pipeline([('preprocessing', MinMaxScaler()), ('classifier', DecisionTreeClassifier())])
+        clf_dtree.fit(X_train, y_train)
+        feature_weights = clf_dtree.named_steps['classifier'].feature_importances_
+
+        plt.bar(X_indices, feature_weights, width=0.2, label='Decision Tree weights')
+        plt.title("Decision Tree Feature Weights")
+        plt.xlabel('Feature Index')
+        plt.ylabel('Weight')
+        plt.legend(loc='upper right')
+        st.pyplot(plt)
+        plt.clf()
+
+        # 使用 Plotly 显示条形图
+        stfig_rate = make_subplots(rows=1, cols=1)
+        stfig_rate.add_trace(go.Bar(x=X_indices, y=feature_weights, name='Decision Tree weights'))
+        stfig_rate.update_xaxes(title_text='Feature Index', tickfont=dict(size=14))
+        stfig_rate.update_yaxes(title_text='Weight', tickfont=dict(size=14))
+        stfig_rate.update_layout(title_text=f'{ds.description} Feature Importance Analysis')
         
-        /* 导航栏样式 */
-        .navbar {
-        background-color: #333;
-        color: #fff;
-        padding: 10px;
-        }
-        
-        /* 菜单栏样式 */
-        .menu {
-        background-color: #f4f4f4;
-        padding: 10px;
-        }
-        
-        /* 问答栏样式 */
-        .qa {
-        padding: 10px;
-        }
-        
-        /* 维修知识库栏样式 */
-        .knowledge-base {
-        background-color: #f4f4f4;
-        padding: 10px;
-        }
-    </style>
-    </head>
-    <body>
-    <!-- 导航栏 -->
-    <div class="navbar">
-        <h1>AI发动机维修数字专家</h1>
-    </div>
-    
-    <!-- 菜单栏 -->
-    <div class="menu">
-        <ul>
-        <li><a href="#">首页</a></li>
-        <li><a href="#">关于</a></li>
-        <li><a href="#">联系我们</a></li>
-        </ul>
-    </div>
-    
-    <!-- 问答栏 -->
-    <div class="qa">
-        <h2>问题与答案</h2>
-        <form>
-        <input type="text" placeholder="请输入您的问题">
-        <button type="submit">提交</button>
-        </form>
-        <div id="answer"></div>
-    </div>
-    
-    <!-- 维修知识库栏 -->
-    <div class="knowledge-base">
-        <h2>维修知识库</h2>
-        <ul>
-        <li>常见问题</li>
-        <li>故障排除</li>
-        <li>维护指南</li>
-        </ul>
-    </div>
-    
-    <!-- JavaScript代码，用于处理问答功能 -->
-    <script>
-        const form = document.querySelector('form');
-        const answerDiv = document.getElementById('answer');
-        
-        form.addEventListener('submit', function(event) {
-        event.preventDefault();
-        const question = form.querySelector('input').value;
+        st.plotly_chart(stfig_rate)
 
-        const options = {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', Authorization: 'Bearer Link_am6pmoLrHT43jVRZ5z3NIzZ6Q66BrSpNo5CCkXOcoe'},
-            body: JSON.stringify({"app_code":"NhSXB3XH","messages":[{"role":"user","content":question}]})
-        };
+        print('The suspicious features for defective products are:')
+        return stfig_rate, feature_weights
 
-        // https://link-ai.tech/app/NhSXB3XH
-        // https://api.link-ai.chat/v1/chat/completions
-        fetch('https://api.link-ai.chat/v1/chat/completions', options)
-        .then(response => response.json())
-        .then(data => {
-            // 读取 content 字段的值
-            const content = data.choices[0].message.content;
-            answerDiv.innerHTML = content
-            console.log(content);
-        })
-        .then(response => console.log(response))
-        .catch(err => console.error('Error:', err));
+# 示例数据集
+class Dataset:
+    def __init__(self, data, target, description):
+        self.data = data
+        self.target = target
+        self.description = description
 
-        });
-    </script>
-    </body>
+# 创建一个示例数据集
+np.random.seed(0)
+data = np.random.rand(100, 10)
+target = (data[:, 0] + data[:, 1] > 1).astype(int)
 
-    </html>
-    '''
+dataset = Dataset(data, target, "示例数据集")
 
-    st.write(html_code, unsafe_allow_html=True)
-
-# 主函数
-def main():
-    st.title("Streamlit 页面中包含 HTML 网页示例")
-    st.write("以下是嵌入的 HTML 网页：")
-    embed_html_page()
-
-if __name__ == "__main__":
-    main()
+# 运行分类器投票预测
+feature_selection([dataset])

@@ -568,66 +568,50 @@ class data_generate():
         df.to_excel(f'{PATH}fakedata_waterpump_mainteance.xlsx', index=False)
         print('data generated')
 
-
+    # 生成数据。excel 100行 第一列低速流量，第二列高速流量，第三列检测时年龄，第四列最终寿命，
+    # 其中检测时年龄小于最终寿命。寿命数值在300-1000之间，寿命分布符合weibull分布，
+    # 低速流量和高速流量数据与检测时年龄数据非线性负相关，即年龄越大流量越小。
+    
     @staticmethod
-    def water_pump_lifedata_gen():
+    def water_pump_lifedata_gen(num_rows=100):
         
-        total_samples =200
-        positive_samples = 100
+        np.random.seed(42)
+        # 生成最终寿命数据，符合 Weibull 分布，范围在 300-1000 之间
+        shape, loc, scale = 1.5, 300, 700  # Weibull 分布的形状参数、位置参数和尺度参数
+        lifetimes = weibull_min.rvs(shape, loc=loc, scale=scale, size=num_rows).astype(int)
         
-        data = [[]]
-        for i in range(0,total_samples) :
-            n1 = '编号'
-            v1 = 'waterpump_'+str(i) 
-            n2 = '工况A流量'
-            v2 = random.uniform(0.5,0.75)
-            n3 = '工况B流量'
-            v3 = random.uniform(0.75,0.1)           
-            n4 = '寿命'
-            
-            
-            data.append([v1,v2,v3])
+        # 生成检测时年龄数据，确保年龄小于最终寿命
+        ages = np.random.uniform(100, lifetimes - 1).astype(int)
         
-        data = data[1:]
+        # 生成低速流量和高速流量数据，与检测时年龄非线性负相关
+        base_low_flow = 50
+        base_high_flow = 80
+        low_flow_range = 20  # 范围 30-50之间的幅度
+        high_flow_range = 20  # 范围 60-80之间的幅度
 
-        shape_param = 2
-        scale_param = 500
-        sample_size = total_samples 
+        # 计算非线性负相关的流量
+        low_flow = base_low_flow - (low_flow_range / (1 + np.exp(-(ages - 50) / 10))) + np.random.normal(0, 1, num_rows)
+        high_flow = base_high_flow - (high_flow_range / (1 + np.exp(-(ages - 50) / 10))) + np.random.normal(0, 1, num_rows)
 
-        min_value = 100
-        max_value = 900
+        # # 确保流量在指定范围内
+        # low_flow = np.clip(low_flow, 30, 50)
+        # high_flow = np.clip(high_flow, 60, 80)
 
-        sample = []
-        # 继续生成随机变量直到达到所需的样本量
-        while len(sample) < sample_size:
-            # 生成额外的随机变量
-            additional_sample = weibull_min.rvs(shape_param, loc=0, scale=scale_param, size=sample_size - len(sample))
-            
-            # 截断：只保留在指定范围内的值
-            additional_sample = additional_sample[(additional_sample >= min_value) & (additional_sample <= max_value)]
-            
-            # 添加到样本容器中
-            sample.extend(additional_sample)
-
-        # 截断到所需的样本量（如果生成过多）
-        sample = np.array(sample[:sample_size]).reshape(sample_size,1)
-
-        # 转换为整数类型
-        sample = sample.astype(int)
+        df = pd.DataFrame({
+            '低速流量': low_flow,
+            '高速流量': high_flow,
+            '检测时年龄': ages,
+            '最终寿命': lifetimes
+        })
         
-        # 将new_column从一维数组转换为二维列向量
-        # sample_2d = sample[:, 0]
-            
-        data = np.column_stack((data, sample))
-             
-        columns = [n1,n2,n3,n4]
-        df = pd.DataFrame(columns = columns, data = data[1:])
         df.to_excel(f'{PATH}fakedata_waterpump_life.xlsx', index=False)
         print('data generated')
 
         
 if __name__ == '__main__':
+    data_generate.water_pump_lifedata_gen()
+    
     
     # data_generate.mainteance_data_gen()
     # data_generate.water_pump_data_gen()
-    data_generate.water_pump_lifedata_gen()
+    

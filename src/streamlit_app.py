@@ -8,20 +8,6 @@ from PIL import Image
 from data_analysis import Data_Input, Data_visual, Classifier, Fault_diagnose, Regressor
 import data_analysis
 
-def feature_viusal():
-    # Add histogram data
-    x1 = np.random.randn(200) - 2
-    x2 = np.random.randn(200)
-    x3 = np.random.randn(200) + 2
-    hist_data = [x1, x2, x3]
-
-    group_labels = ['A工况流量', 'B工况流量', 'C工况流量']
-
-    # Create distplot with custom bin_size
-    fig = ff.create_distplot(
-            hist_data, group_labels, bin_size=[.1, .25, .5])
-
-    st.plotly_chart(fig, use_container_width=True)
     
 def fig_show():
     engine_datasets = Data_Input.read_xls_life_data()
@@ -38,95 +24,71 @@ st.write("""
 本工具箱用于分析 **大马力柴油发动机检修项目** 
 """)
 
+# 导航栏界面
+st.sidebar.header('导航栏')
+
+data_source = st.sidebar.radio("选择数据输入方式", ("上传数据文件", "使用程序内数据"))
 st.sidebar.markdown("""
-[Example EXCEL input file](https://docs.qq.com/sheet/DQ1BqUk5xTlJoTUpw?tab=BB08J2)
+[输入数据文件示例 ](https://docs.qq.com/sheet/DQ1BqUk5xTlJoTUpw?tab=BB08J2)
 """)
 
+if data_source == "上传数据文件":
+    uploaded_file = st.sidebar.file_uploader("上传数据文件 格式EXCEL", type=["xlsx"])
+    if uploaded_file is not None:
+        st.write("数据已导入")
+        input_df = pd.read_excel(uploaded_file)
+        engine_datasets = data_analysis.LoadDataset()
+        engine_datasets.load_from_dataframe(input_df)
+else:
+    st.write("使用程序内数据")
+    engine_datasets = data_analysis.LoadDataset(file_path=data_analysis.FILE_2022_BENCH_TEST_FORMAT)
 
-type = st.sidebar.selectbox('发动机型号',('930E','5500'))
 
-# Collects user input features into dataframe
-uploaded_file = st.sidebar.file_uploader("Upload your input Excel file", type=["xlsx"])
-if uploaded_file is not None:
-    print("数据已导入")
-    input_df = pd.read_excel(uploaded_file)
-    engine_datasets = data_analysis.LoadDataset()
-    engine_datasets.load_from_dataframe(input_df)
+engine_type = st.sidebar.selectbox('发动机型号',('930E','MT5500','830E','SF33900','MT4400'))
+engine_id = st.sidebar.text_area("发动机序列号", "SN-3316-5988")
 
-st.sidebar.header('导航栏')
-input = "930E_1234567"
-SMILES = st.sidebar.text_area("发动机序列号", input)
 
 if st.button('数据分析'):
     st.write('结果展示')
-    engine_datasets = data_analysis.LoadDataset(file_path = data_analysis.FILE_PART_LIFE)
-
-    fig, N = Data_visual.plot_data([engine_datasets])
-    st.pyplot(fig)
+    engine_datasets = data_analysis.LoadDataset(file_path = data_analysis.FILE_2022_BENCH_TEST_FORMAT)
+    Data_visual.analyze_data([engine_datasets])
+    # fig, N = Data_visual.analyze_data([engine_datasets])
+    # st.pyplot(fig)
     
     
 if st.button('质量评价'):
     
-    st.subheader('分析结论')
-    
-    # engine_datasets = data_analysis.LoadDataset(file_path = data_analysis.FILE_2022_BENCH_TEST_FORMAT)
-    stfig_ret, stfig_his, most_common_class = Classifier.classifier_vote_pre([engine_datasets])
-    st.plotly_chart(stfig_ret, use_container_width=True)
-    st.plotly_chart(stfig_his, use_container_width=True)
-    
-    st.write('根据大数据程序分析，该产品质量评价结果')
-    df = pd.DataFrame({'产品类型': '发动机',
-                       '检测结果': "合格" if most_common_class == 0 else "不合格" 
-                       },index=[0])
-    df.loc[1] = ['水泵','合格']
-    st.write(df)
-    
-if st.button('故障诊断'):
-    st.subheader('分析结论')
+    st.write("""
+    # 故障诊断工具
+
+    通过应用先进机器学习分类算法，根据发动机热试台架试验历史数据，辅助分析判断发动机检修质量
+    """)
     
     engine_datasets = data_analysis.LoadDataset(file_path = data_analysis.FILE_2022_BENCH_TEST_FORMAT)
-    stfig_rate , feature_weights = Fault_diagnose.feature_selection([engine_datasets])
-    st.plotly_chart(stfig_rate, use_container_width=True)
+    Classifier.classifier_vote_pre([engine_datasets])
+
     
-    st.write('根据大数据程序分析，该产品检测项疑似故障')
+if st.button('故障诊断'):
+    st.write("""
+    # 故障诊断工具
+
+    在发动机出现故障时，通过应用机器学习分类算法中的各特征对故障分类的贡献度，快速发现发动机检测装配时的隐含问题，及时给出可能故障原因和辅助诊断建议。。
+    """)
+    
+    engine_datasets = data_analysis.LoadDataset(file_path = data_analysis.FILE_2022_BENCH_TEST_FORMAT)
+    Fault_diagnose.feature_selection([engine_datasets])
     
     # feature_viusal()
     
 if st.button('寿命分析'):
-    st.subheader('分析结论')
-    st.write('根据大数据程序分析，该产品剩余寿命为1000小时')
-    st.write('该产品未来失效数量预测')
-    df = pd.DataFrame({'需备品量（第一季度）': '200',
-                    '需备品量（第二季度）': '200',
-                    '需备品量（第三季度）': '200',
-                    '需备品量（第四季度）': '200'
-                    },index=[0])
-    st.write('根据大数据程序分析，该产品剩余寿命为1000小时')
-    
-    st.write(df)
-    
-    # engine_datasets = data_analysis.LoadDataset(file_path = data_analysis.FILE_PART_LIFE)
+    st.write("""
+    # 寿命分析工具
 
-    fig,report = Regressor.predict([engine_datasets])
+    通过应用机器学习中的先进回归算法和分析产品维修检测时的关键数据，预测产品寿命和失效日期，给出更精确的维修备品备库数量和制定更有效的维护计划。
+    """)
+    engine_datasets = data_analysis.LoadDataset(file_path = data_analysis.FILE_PART_LIFE)
+    Regressor.predict([engine_datasets])
     
-    st.plotly_chart(fig, use_container_width=True)
-    st.write(report)
-
-# genre = st.radio(
-#     "What's your favorite movie genre",
-#     [":rainbow[Comedy]", "***Drama***", "Documentary :movie_camera:"],
-#     captions = ["Laugh out loud.", "Get the popcorn.", "Never stop learning."])
-
-# if genre == ':rainbow[Comedy]':
-#     st.write('You selected comedy.')
-# else:
-#     st.write("You didn\'t select comedy.")
-    
-    
-agree = st.checkbox('I agree')
-
-if agree:
-    st.write('Great!')
 
 
 # # 定义多个页面
